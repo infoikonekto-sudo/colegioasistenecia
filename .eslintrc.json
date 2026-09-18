@@ -1,0 +1,11 @@
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "react/no-unescaped-entities": "off",
+    "jsx-a11y/alt-text": "warn",
+    "jsx-a11y/label-has-associated-control": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "@next/next/no-html-link-for-pages": "warn",
+    "no-console": "warn"
+  }
+}
