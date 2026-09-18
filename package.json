@@ -1,0 +1,50 @@
+{
+  "name": "colegio-asistencia",
+  "version": "1.0.0",
+  "description": "Sistema de Control de Asistencia Biométrica - Colegio Manos a la Obra",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "setup-models": "node scripts/download-models.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.1",
+    "@tensorflow/tfjs": "^4.11.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.11.0",
+    "@types/qrcode": "^1.5.6",
+    "axios": "^1.6.0",
+    "date-fns": "^2.30.0",
+    "dotenv": "^17.4.2",
+    "face-api.js": "^0.22.2",
+    "html5-qrcode": "^2.3.8",
+    "js-cookie": "^3.0.5",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
+    "next": "^14.0.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.48.0",
+    "react-signature-canvas": "^1.1.0-alpha.2",
+    "recharts": "^3.8.1",
+    "uuid": "^9.0.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/js-cookie": "^3.0.5",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/react-signature-canvas": "^1.0.7",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.50.0",
+    "eslint-config-next": "^14.0.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.0.0"
+  }
+}
