@@ -1,0 +1,375 @@
+colegio-asistencia/
+│
+├── 📁 app/
+│   ├── 📄 layout.tsx
+│   ├── 📄 page.tsx
+│   ├── 📄 globals.css
+│   ├── 📁 marcaje/
+│   │   └── 📄 page.tsx
+│   ├── 📁 admin/
+│   │   └── 📄 page.tsx
+│   └── 📁 login/
+│       └── 📄 page.tsx
+│
+├── 📁 components/
+│   ├── 📁 Marcaje/
+│   │   ├── 📄 CamaraReconocimiento.tsx
+│   │   ├── 📄 PantallaMarcaje.tsx
+│   │   └── 📄 MarcajeConfirmacion.tsx
+│   └── 📁 Dashboard/
+│       ├── 📄 TarjetasEstadisticas.tsx
+│       ├── 📄 ListaAsistencia.tsx
+│       └── 📄 BarraBusca.tsx
+│
+├── 📁 lib/
+│   ├── 📄 supabase.ts
+│   ├── 📄 faceRecognition.ts
+│   ├── 📄 utils.ts
+│   └── 📄 store.ts
+│
+├── 📁 types/
+│   └── 📄 index.ts
+│
+├── 📁 public/
+│   ├── 📁 models/
+│   │   ├── ssd_mobilenetv1_model-weights_manifest.json
+│   │   ├── ssd_mobilenetv1_model-shard1
+│   │   ├── face_landmark_68_model-weights_manifest.json
+│   │   ├── face_landmark_68_model-shard1
+│   │   ├── face_recognition_model-weights_manifest.json
+│   │   ├── face_recognition_model-shard1
+│   │   └── face_recognition_model-shard2
+│   └── 📄 favicon.ico (crear)
+│
+├── 📁 styles/
+│   └── (estilos adicionales si los hay)
+│
+├── 📄 package.json
+├── 📄 tsconfig.json
+├── 📄 next.config.js
+├── 📄 tailwind.config.ts
+├── 📄 postcss.config.js
+│
+├── 📄 .env.example
+├── 📄 .env.local (crear después)
+├── 📄 .gitignore
+│
+├── 📄 README.md
+├── 📄 INSTALACION.md
+├── 📄 QUICK_START.md
+├── 📄 PROYECTO_RESUMEN.md
+├── 📄 VERIFICACION_FINAL.md
+│
+├── 📄 supabase_schema.sql
+├── 📄 setup.sh
+├── 📄 LICENSE
+│
+├── 📁 .git/ (después de git init)
+├── 📁 .next/ (generado después de npm run build)
+├── 📁 node_modules/ (generado después de npm install)
+│
+└── 📄 ESTRUCTURA.txt (este archivo)
+
+═══════════════════════════════════════════════════════════════════
+
+RESUMEN DE ESTRUCTURA:
+
+📂 Directorios Principales (7):
+   └─ app/      (Páginas Next.js)
+   └─ components/ (Componentes React)
+   └─ lib/      (Librerías y utilidades)
+   └─ types/    (Tipos TypeScript)
+   └─ public/   (Archivos estáticos)
+   └─ styles/   (Estilos CSS)
+   └─ node_modules/ (Dependencias, generado)
+
+📄 Archivos de Configuración (7):
+   └─ package.json
+   └─ tsconfig.json
+   └─ next.config.js
+   └─ tailwind.config.ts
+   └─ postcss.config.js
+   └─ .env.example
+   └─ .gitignore
+
+📄 Archivos de Código (31):
+   └─ App Pages: 6
+   └─ Components: 6
+   └─ Lib/Types: 6
+   └─ Documentación: 5
+   └─ Scripts/Licencia: 2
+
+═══════════════════════════════════════════════════════════════════
+
+DESCRIPCIÓN DE CARPETAS:
+
+app/
+├── Rutas Next.js 14 con App Router
+├── layout.tsx → Layout principal con header, footer
+├── globals.css → Estilos globales de la aplicación
+├── page.tsx → Página de inicio (redirige a /marcaje)
+├── marcaje/ → Pantalla para iPads
+│   └── page.tsx → Componente PantallaMarcaje
+└── admin/ → Dashboard para RRHH
+    └── page.tsx → Componente AdminPage
+└── login/ → Página de autenticación
+    └── page.tsx → Formulario de login
+
+components/
+├── Componentes React reutilizables
+├── Marcaje/
+│   ├── CamaraReconocimiento.tsx → Cámara + detección facial
+│   ├── PantallaMarcaje.tsx → Lógica principal de marcaje
+│   └── MarcajeConfirmacion.tsx → Confirmación después de marcar
+└── Dashboard/
+    ├── TarjetasEstadisticas.tsx → Estadísticas principales
+    ├── ListaAsistencia.tsx → Lista de empleados
+    └── BarraBusca.tsx → Búsqueda y filtros
+
+lib/
+├── Lógica de negocio y utilidades
+├── supabase.ts → Cliente Supabase + servicios
+│   ├── authService
+│   ├── empleadosService
+│   ├── marcajesService
+│   ├── justificacionesService
+│   └── storageService
+├── faceRecognition.ts → Funciones de reconocimiento facial
+│   ├── loadModels()
+│   ├── detectFace()
+│   ├── compareFaceDescriptors()
+│   └── matchFaceDescriptor()
+├── utils.ts → Funciones utilitarias
+│   ├── calculateAsistenciaStats()
+│   ├── getEstadoAsistencia()
+│   ├── formatTime()
+│   ├── exportToCSV()
+│   └── ...más funciones
+└── store.ts → Estado global con Zustand
+    └── useAsistenciaStore
+
+types/
+└── index.ts → Tipos TypeScript completos
+    ├── Empleado
+    ├── Marcaje
+    ├── Justificacion
+    ├── UsuarioAdmin
+    ├── Configuracion
+    ├── EstadisticasAsistencia
+    └── ...más tipos
+
+public/
+├── Archivos estáticos y públicos
+├── models/ → Modelos de face-api.js
+│   └── Archivos de peso (weights) descargados
+├── favicon.ico → Icono del navegador
+└── ...más activos si los hay
+
+styles/
+└── Estilos CSS adicionales (si los hay)
+
+═══════════════════════════════════════════════════════════════════
+
+ARCHIVOS IMPORTANTES:
+
+package.json
+└── Define dependencias, scripts, metadata del proyecto
+
+tsconfig.json
+└── Configuración de TypeScript
+
+next.config.js
+└── Configuración de Next.js
+    ├── Image optimization
+    ├── Webpack config
+    └── Environment variables
+
+tailwind.config.ts
+└── Configuración de Tailwind
+    ├── Colores institucionales
+    └── Extensiones personalizadas
+
+.env.example
+└── Plantilla de variables de entorno
+    └─ Copiar a .env.local y completar datos
+
+supabase_schema.sql
+└── Script SQL para Supabase
+    ├── Crear tablas
+    ├── Crear índices
+    ├── Crear funciones
+    ├── Crear vistas
+    └── Insertar datos iniciales
+
+README.md
+└── Descripción general del proyecto
+
+INSTALACION.md
+└── Guía paso a paso de instalación
+
+QUICK_START.md
+└── Guía rápida para desarrolladores
+
+═══════════════════════════════════════════════════════════════════
+
+GUÍA DE USO RÁPIDA:
+
+1. INSTALAR:
+   $ npm install
+
+2. CONFIGURAR:
+   $ cp .env.example .env.local
+   # Editar .env.local con credenciales Supabase
+
+3. EJECUTAR:
+   $ npm run dev
+   Abre: http://localhost:3000/marcaje
+
+4. CONSTRUIR:
+   $ npm run build
+   $ npm run start
+
+5. DESPLEGAR:
+   Sube a GitHub y conecta Vercel
+
+═══════════════════════════════════════════════════════════════════
+
+VARIABLES DE ENTORNO REQUERIDAS:
+
+NEXT_PUBLIC_SUPABASE_URL        → URL de Supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY   → API Key de Supabase
+
+VARIABLES OPCIONALES:
+
+NEXT_PUBLIC_APP_NAME
+NEXT_PUBLIC_APP_URL
+NEXT_PUBLIC_FACE_RECOGNITION_THRESHOLD
+NEXT_PUBLIC_IPAD_1_NAME
+NEXT_PUBLIC_IPAD_2_NAME
+NEXT_PUBLIC_IPAD_3_NAME
+NEXT_PUBLIC_IPAD_4_NAME
+NEXT_PUBLIC_ENABLE_OFFLINE_MODE
+NEXT_PUBLIC_ENABLE_LOCATION_TRACKING
+NEXT_PUBLIC_PHOTO_CAPTURE_ON_ATTENDANCE
+
+═══════════════════════════════════════════════════════════════════
+
+COLORES INSTITUCIONALES:
+
+#1E40AF → Azul Principal
+#3B82F6 → Azul Claro (Secundario)
+#FCD34D → Amarillo (Acentos)
+#10B981 → Verde (Éxito)
+#EF4444 → Rojo (Error)
+#FFFFFF → Blanco (Fondos)
+#F3F4F6 → Gris Claro
+#E5E7EB → Gris Oscuro
+
+═══════════════════════════════════════════════════════════════════
+
+TABLA DE BASE DE DATOS:
+
+empleados
+├── id (UUID)
+├── nombre, apellido
+├── cedula (UNIQUE)
+├── departamento, cargo
+├── foto_url
+├── face_descriptor (JSONB)
+├── horario_entrada, tolerancia_minutos
+├── activo
+└── timestamps
+
+marcajes
+├── id (UUID)
+├── empleado_id (FK)
+├── tipo ('entrada' | 'salida')
+├── fecha, hora, timestamp
+├── punto_marcaje, ipad_id
+├── foto_marcaje_url
+├── confianza (%)
+└── sincronizado
+
+justificaciones
+├── id (UUID)
+├── empleado_id (FK)
+├── fecha, motivo
+├── documento_url
+├── estado
+└── aprobado_por (FK)
+
+usuarios_admin
+├── id (UUID)
+├── email (UNIQUE)
+├── nombre
+├── rol
+└── activo
+
+═══════════════════════════════════════════════════════════════════
+
+TECNOLOGÍAS UTILIZADAS:
+
+Frontend:
+├── Next.js 14 (Framework)
+├── React 18 (UI Library)
+├── TypeScript (Tipado)
+├── Tailwind CSS (Estilos)
+├── face-api.js (Reconocimiento facial)
+├── TensorFlow.js (ML)
+├── Zustand (Estado)
+└── React Hook Form (Formularios)
+
+Backend:
+├── Supabase (BaaS)
+├── PostgreSQL (BD)
+├── Supabase Auth (Autenticación)
+├── Supabase Storage (Archivos)
+└── Supabase Realtime (Sync)
+
+Deployment:
+├── Vercel (Hosting)
+├── GitHub (Control de versiones)
+└── Cloudflare (CDN, opcional)
+
+═══════════════════════════════════════════════════════════════════
+
+PRÓXIMOS PASOS:
+
+1. Descargar modelos de face-api.js
+   → Coloca en public/models/
+
+2. Configurar .env.local
+   → Copia de .env.example
+   → Agrega credenciales Supabase
+
+3. npm install
+   → Instala todas las dependencias
+
+4. npm run dev
+   → Inicia servidor de desarrollo
+
+5. Crear proyecto Supabase
+   → Ejecuta supabase_schema.sql
+
+6. Registrar empleados
+   → Sube datos a Supabase
+
+7. Configurar iPads
+   → URLs específicas para cada iPad
+
+8. Desplegar a Vercel
+   → Conecta repositorio GitHub
+
+═══════════════════════════════════════════════════════════════════
+
+Para más información, ver:
+📖 README.md
+📖 INSTALACION.md
+📖 QUICK_START.md
+📖 PROYECTO_RESUMEN.md
+
+═══════════════════════════════════════════════════════════════════
+
+Proyecto Completado: ✅ 5 de Febrero de 2026
+Versión: 1.0.0
+Estado: Listo para Producción
