@@ -306,11 +306,19 @@ export default function ReportesPage() {
       return empleados.map(emp => {
         const empMarcs = marcajes.filter(x => x.empleado_id === emp.id && x.fecha === fechaInicio);
         
-        const entradas = empMarcs.filter(m => m.tipo === 'entrada' || !m.tipo).sort((a, b) => a.hora.localeCompare(b.hora));
+        const entradas = empMarcs.filter(m => m.tipo === 'entrada').sort((a, b) => a.hora.localeCompare(b.hora));
         const salidas = empMarcs.filter(m => m.tipo === 'salida').sort((a, b) => b.hora.localeCompare(a.hora));
         
-        const mEntrada = entradas[0];
-        const mSalida = salidas[0];
+        const mEntrada = entradas[0] || empMarcs.sort((a, b) => a.hora.localeCompare(b.hora))[0];
+        let mSalida = salidas[0];
+
+        // Fallback: Si escaneó 2+ veces en el día y no hay marcaje marcado explícitamente como 'salida'
+        if (!mSalida && empMarcs.length > 1) {
+          const sortedDesc = [...empMarcs].sort((a, b) => b.hora.localeCompare(a.hora));
+          if (sortedDesc[0] !== mEntrada) {
+            mSalida = sortedDesc[0];
+          }
+        }
         
         const horaEntrada = mEntrada?.hora?.substring(0, 5) || '-';
         const horaSalida = mSalida?.hora?.substring(0, 5) || '-';
@@ -367,11 +375,19 @@ export default function ReportesPage() {
       const firstM = list[0];
       const emp = firstM.empleado || empleados.find(e => e.id === firstM.empleado_id);
       
-      const entradas = list.filter(m => m.tipo === 'entrada' || !m.tipo).sort((a, b) => a.hora.localeCompare(b.hora));
+      const entradas = list.filter(m => m.tipo === 'entrada').sort((a, b) => a.hora.localeCompare(b.hora));
       const salidas = list.filter(m => m.tipo === 'salida').sort((a, b) => b.hora.localeCompare(a.hora));
 
-      const mEntrada = entradas[0];
-      const mSalida = salidas[0];
+      const mEntrada = entradas[0] || [...list].sort((a, b) => a.hora.localeCompare(b.hora))[0];
+      let mSalida = salidas[0];
+
+      // Fallback para registros grupales
+      if (!mSalida && list.length > 1) {
+        const sortedDesc = [...list].sort((a, b) => b.hora.localeCompare(a.hora));
+        if (sortedDesc[0] !== mEntrada) {
+          mSalida = sortedDesc[0];
+        }
+      }
 
       const horaEntrada = mEntrada?.hora?.substring(0, 5) || '-';
       const horaSalida = mSalida?.hora?.substring(0, 5) || '-';
