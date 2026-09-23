@@ -358,6 +358,118 @@ async function exportarPDFPorCategorias(tabla: any[], titulo: string, sede: stri
   doc.save(`${nombreFinal}-${getTodayStr()}.pdf`);
 }
 
+async function exportarPDFDiagnosticoIADepartamento(rendimientoDepto: any, fechaInicio: string, fechaFin: string, sede: string | null = null) {
+  if (!rendimientoDepto || !rendimientoDepto.empAnalysis) return;
+
+  const doc = new jsPDF({ orientation: 'portrait' });
+  const pageWidth = doc.internal.pageSize.width;
+
+  // Header Navy Premium
+  doc.setFillColor(30, 58, 138);
+  doc.rect(0, 0, pageWidth, 30, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  const tituloCompleto = sede ? `Colegio Manos a la Obra - SEDE ${sede}` : 'Colegio Manos a la Obra';
+  doc.text(tituloCompleto, 14, 12);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(226, 232, 240);
+  doc.text(`INFORME CONSOLIDADO DIAGNÓSTICO IA DE DEPARTAMENTO: ${rendimientoDepto.nombreDepartamento.toUpperCase()}`, 14, 19);
+  doc.text(`Período: ${fechaInicio} a ${fechaFin} | Generado: ${new Date().toLocaleString('es-ES')}`, 14, 25);
+
+  let currentY = 38;
+
+  // Resumen del Departamento
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(14, currentY, pageWidth - 28, 22, 3, 3, 'FD');
+
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 138);
+  doc.text(`Resumen Ejecutivo - ${rendimientoDepto.nombreDepartamento}`, 18, currentY + 8);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Total Personal: ${rendimientoDepto.totalFuncionarios}`, 18, currentY + 15);
+  doc.text(`Puntualidad Promedio: ${rendimientoDepto.pctPuntualidadPromedio}%`, 65, currentY + 15);
+  doc.text(`Total Tardanzas: ${rendimientoDepto.totalTardanzasDepto}`, 115, currentY + 15);
+  doc.text(`Min. Retardo: ${rendimientoDepto.totalMinutosDepto} min`, 155, currentY + 15);
+
+  currentY += 28;
+
+  // Render cada funcionario del departamento
+  rendimientoDepto.empAnalysis.forEach((item: any, idx: number) => {
+    const emp = item.emp;
+
+    if (currentY > doc.internal.pageSize.height - 45) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Banner Nombre Funcionario
+    doc.setFillColor(15, 23, 42); // Slate 900
+    doc.rect(14, currentY, pageWidth - 28, 7, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${idx + 1}. ${emp.nombre} ${emp.apellido} (${emp.cargo || 'Sin Cargo'}) - Cédula: ${emp.cedula || 'N/A'}`, 18, currentY + 5);
+
+    currentY += 9;
+
+    // Dictamen IA y Metricas
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, currentY, pageWidth - 28, 15, 2, 2, 'FD');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 138);
+    doc.text(`Puntualidad: ${item.porcentajePuntualidad}% | Tardanzas: ${item.diasTarde} | Retardo Acumulado: ${item.minutosRetrasoTotal} min`, 18, currentY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Dictamen IA: ${item.aiInsight}`, 18, currentY + 10.5);
+
+    currentY += 18;
+
+    // Tabla de marcajes del funcionario si tiene datos
+    if (item.datosEmp && item.datosEmp.length > 0) {
+      const cols = ['Fecha', 'Entrada', 'Salida', 'Estación', 'Estado', 'Retardo', 'Motivo / Obs'];
+      const filas = item.datosEmp.map((d: any) => [
+        d.fecha,
+        d.horaEntrada || '-',
+        d.horaSalida || '-',
+        d.estacion || '—',
+        d.status.toUpperCase(),
+        d.minutos > 0 && d.minutos !== Infinity ? `+${d.minutos} min` : '0 min',
+        d.motivo || d.observaciones || '-'
+      ]);
+
+      autoTable(doc, {
+        head: [cols],
+        body: filas,
+        startY: currentY,
+        styles: { fontSize: 7, cellPadding: 2, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 6;
+    } else {
+      currentY += 4;
+    }
+  });
+
+  const nombreArchivo = `diagnostico-ia-depto-${rendimientoDepto.nombreDepartamento.toLowerCase().replace(/\s+/g, '-')}-${getTodayStr()}.pdf`;
+  doc.save(nombreArchivo);
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ReportesPage() {
   const { adminSede } = useAsistenciaStore();
@@ -707,6 +819,75 @@ export default function ReportesPage() {
     };
   }, [empleadoSeleccionadoId, tablaAsistencia, empleados, config]);
 
+  // Department-wide IA Performance Metrics
+  const rendimientoDepartamento = useMemo(() => {
+    const targetEmps = empleados.filter(e => !filtroDept || e.departamento === filtroDept);
+    if (targetEmps.length === 0) return null;
+
+    const empAnalysis = targetEmps.map(emp => {
+      const datosEmp = tablaAsistencia.filter(r => r.cedula === emp.cedula);
+      const totalDias = datosEmp.length;
+      const diasAusente = datosEmp.filter(d => d.status === 'ausente').length;
+      const diasPresente = totalDias - diasAusente;
+      const diasPuntual = datosEmp.filter(d => d.status === 'puntual').length;
+      const diasTarde = datosEmp.filter(d => d.status === 'tarde').length;
+      
+      const porcentajePuntualidad = diasPresente > 0 ? Math.round((diasPuntual / diasPresente) * 100) : 0;
+      const minutosRetrasoTotal = datosEmp.reduce((sum, d) => sum + (d.status === 'tarde' && d.minutos > config.toleranciaMinutos ? d.minutos : 0), 0);
+      
+      let aiInsight = '';
+      let aiColor = 'emerald';
+      
+      if (diasPresente === 0) {
+        aiInsight = 'No se registran asistencias para este funcionario en el período.';
+        aiColor = 'slate';
+      } else if (porcentajePuntualidad >= 95) {
+        aiInsight = 'Rendimiento Sobresaliente. Mantiene un cumplimiento de horario ejemplar (arriba del 95%).';
+        aiColor = 'emerald';
+      } else if (porcentajePuntualidad >= 80) {
+        aiInsight = `Cumplimiento Normal. Presentó ${diasTarde} tardanza(s), acumulando ${minutosRetrasoTotal} minutos de retardo.`;
+        aiColor = 'blue';
+      } else if (porcentajePuntualidad >= 50) {
+        aiInsight = `Atención Requerida. Índice de puntualidad al ${porcentajePuntualidad}%. Registra ${minutosRetrasoTotal} min acumulados.`;
+        aiColor = 'amber';
+      } else {
+        aiInsight = `Alerta Crítica. El ${100 - porcentajePuntualidad}% de sus marcajes han sido con retardo. Acción administrativa prioritaria.`;
+        aiColor = 'rose';
+      }
+
+      return {
+        emp,
+        datosEmp,
+        totalDias,
+        diasPresente,
+        diasAusente,
+        diasPuntual,
+        diasTarde,
+        porcentajePuntualidad,
+        minutosRetrasoTotal,
+        aiInsight,
+        aiColor
+      };
+    });
+
+    const totalFuncionarios = targetEmps.length;
+    const empsConAsistencia = empAnalysis.filter(x => x.diasPresente > 0);
+    const pctPuntualidadPromedio = empsConAsistencia.length > 0 
+      ? Math.round(empsConAsistencia.reduce((acc, x) => acc + x.porcentajePuntualidad, 0) / empsConAsistencia.length)
+      : 0;
+    const totalTardanzasDepto = empAnalysis.reduce((acc, x) => acc + x.diasTarde, 0);
+    const totalMinutosDepto = empAnalysis.reduce((acc, x) => acc + x.minutosRetrasoTotal, 0);
+
+    return {
+      nombreDepartamento: filtroDept || 'Todos los Departamentos',
+      totalFuncionarios,
+      pctPuntualidadPromedio,
+      totalTardanzasDepto,
+      totalMinutosDepto,
+      empAnalysis
+    };
+  }, [empleados, filtroDept, tablaAsistencia, config]);
+
   // Handlers
   const handleGuardarConfig = async () => {
     try {
@@ -745,8 +926,12 @@ export default function ReportesPage() {
 
   const handleExportarPDF = () => {
     setExportando(true);
-    if (activeTab === 'ia' && rendimientoEmpleado) {
-      exportarPDFDiagnosticoIA(rendimientoEmpleado, fechaInicio, fechaFin, adminSede);
+    if (activeTab === 'ia') {
+      if (rendimientoEmpleado) {
+        exportarPDFDiagnosticoIA(rendimientoEmpleado, fechaInicio, fechaFin, adminSede);
+      } else if (rendimientoDepartamento) {
+        exportarPDFDiagnosticoIADepartamento(rendimientoDepartamento, fechaInicio, fechaFin, adminSede);
+      }
       setExportando(false);
       return;
     }
@@ -776,6 +961,13 @@ export default function ReportesPage() {
     if (!rendimientoEmpleado) return;
     setExportando(true);
     exportarPDFDiagnosticoIA(rendimientoEmpleado, fechaInicio, fechaFin, adminSede);
+    setExportando(false);
+  };
+
+  const handleExportarPDFDiagnosticoDepartamento = () => {
+    if (!rendimientoDepartamento) return;
+    setExportando(true);
+    exportarPDFDiagnosticoIADepartamento(rendimientoDepartamento, fechaInicio, fechaFin, adminSede);
     setExportando(false);
   };
 
@@ -1238,12 +1430,13 @@ export default function ReportesPage() {
               onChange={e => setEmpleadoSeleccionadoId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#1E3A8A]"
             >
-              <option value="">-- Seleccione un funcionario de la lista --</option>
+              <option value="">-- Ver Diagnóstico Consolidado ({filtroDept || 'Todos los Departamentos'}) --</option>
               {empleados
                 .filter(e => {
-                  if (!busquedaIA) return true;
+                  const matchDept = !filtroDept || e.departamento === filtroDept;
+                  if (!busquedaIA) return matchDept;
                   const searchStr = `${e.nombre} ${e.apellido} ${e.cedula}`.toLowerCase();
-                  return searchStr.includes(busquedaIA.toLowerCase());
+                  return matchDept && searchStr.includes(busquedaIA.toLowerCase());
                 })
                 .map(e => (
                 <option key={e.id} value={e.id}>
@@ -1317,9 +1510,93 @@ export default function ReportesPage() {
                 </div>
               </div>
             </div>
+          ) : rendimientoDepartamento ? (
+            <div className="space-y-6">
+              {/* TARJETA CONSOLIDADO DEPARTAMENTO IA */}
+              <div className="glass-panel p-8 rounded-3xl border-l-8 border-l-[#1E3A8A] bg-white shadow-sm space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Análisis Consolidado de Departamento (IA)</span>
+                    <h2 className="text-2xl font-extrabold text-slate-900 mt-0.5">
+                      Departamento: {rendimientoDepartamento.nombreDepartamento}
+                    </h2>
+                    <p className="text-xs font-semibold text-slate-500">
+                      Total Funcionarios Evaluados: {rendimientoDepartamento.totalFuncionarios}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleExportarPDFDiagnosticoDepartamento}
+                    disabled={exportando}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 px-5 rounded-2xl shadow-md transition-all flex items-center gap-2 flex-shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Exportar PDF Diagnóstico IA ({rendimientoDepartamento.nombreDepartamento})
+                  </button>
+                </div>
+
+                {/* METRICAS KPI DEPARTAMENTALES */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Puntualidad Promedio</span>
+                    <p className="text-2xl font-extrabold text-slate-900 mt-1">{rendimientoDepartamento.pctPuntualidadPromedio}%</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Personal Evaluado</span>
+                    <p className="text-2xl font-extrabold text-slate-900 mt-1">{rendimientoDepartamento.totalFuncionarios}</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Tardanzas</span>
+                    <p className="text-2xl font-extrabold text-amber-800 mt-1">{rendimientoDepartamento.totalTardanzasDepto}</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Min. Retardo Acumulados</span>
+                    <p className="text-2xl font-extrabold text-rose-800 mt-1">{rendimientoDepartamento.totalMinutosDepto} min</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* LISTADO DE FUNCIONARIOS DEL DEPARTAMENTO CON SU DICTAMEN IA */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                  <span>Diagnóstico IA Individual del Personal de {rendimientoDepartamento.nombreDepartamento}</span>
+                  <span className="text-xs font-semibold text-slate-400">{rendimientoDepartamento.empAnalysis.length} Funcionarios</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {rendimientoDepartamento.empAnalysis.map((item: any) => (
+                    <div key={item.emp.id} className="p-5 bg-white rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900">{item.emp.nombre} {item.emp.apellido}</h4>
+                          <p className="text-[11px] font-medium text-slate-500">{item.emp.cargo || 'Sin Cargo'} • Cédula: {item.emp.cedula || 'N/A'}</p>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${item.porcentajePuntualidad >= 90 ? 'bg-emerald-50 text-emerald-700' : item.porcentajePuntualidad >= 75 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                          {item.porcentajePuntualidad}% Puntual
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 font-medium">
+                        🤖 {item.aiInsight}
+                      </p>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 font-mono">
+                        <span>Tardanzas: <b>{item.diasTarde}</b></span>
+                        <span>Retardo total: <b>{item.minutosRetrasoTotal} min</b></span>
+                        <button
+                          onClick={() => setEmpleadoSeleccionadoId(item.emp.id)}
+                          className="text-[#1E3A8A] font-bold hover:underline"
+                        >
+                          Ver Detalle →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="p-12 text-center glass-panel rounded-3xl bg-white border border-slate-200 text-slate-400 font-medium">
-              Seleccione un funcionario en el menú superior para visualizar su diagnóstico detallado.
+              No se encontraron funcionarios para analizar en este departamento.
             </div>
           )}
         </div>
