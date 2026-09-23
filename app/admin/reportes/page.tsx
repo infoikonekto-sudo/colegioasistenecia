@@ -16,8 +16,11 @@ interface MarcajeRow {
   empleado_id: string;
   fecha: string;
   hora: string;
+  tipo?: 'entrada' | 'salida';
   punto_marcaje: string;
   confianza: number;
+  foto_marcaje_url?: string;
+  foto_url?: string;
   empleado?: {
     id: string;
     nombre: string;
@@ -222,23 +225,7 @@ export default function ReportesPage() {
         justificacionesService.getByRango(fechaInicio, fechaFin)
       ]);
       setEmpleados(emps || []);
-      
-      // Eliminar marcajes duplicados (por si un usuario escaneó varias veces el mismo día)
-      // Se conserva únicamente el primero del día.
-      const uniqueMarcsMap = new Map();
-      (marcs || []).forEach((m: any) => {
-         const key = `${m.empleado_id}_${m.fecha}`;
-         if (!uniqueMarcsMap.has(key)) {
-            uniqueMarcsMap.set(key, m);
-         } else {
-            // Si ya existe, conservar la hora de entrada más temprana
-            if (m.hora < uniqueMarcsMap.get(key).hora) {
-               uniqueMarcsMap.set(key, m);
-            }
-         }
-      });
-      setMarcajes(Array.from(uniqueMarcsMap.values()));
-      
+      setMarcajes(marcs || []);
       setJustificaciones(justifs || []);
     } catch (e) {
       console.error(e);
@@ -303,32 +290,48 @@ export default function ReportesPage() {
     subarea: string;
     cargo: string;
     fecha: string;
-    hora: string;
+    horaEntrada: string;
+    horaSalida: string;
     estacion: string;
     minutos: number;
     status: 'puntual' | 'tarde' | 'ausente' | 'asueto' | 'fin_de_semana';
     motivo: string;
     observaciones: string;
     fotoEvidenciaUrl?: string;
+    fotoEvidenciaSalidaUrl?: string;
   };
 
   const tablaAsistencia: RowAsistencia[] = useMemo(() => {
     if (esDiaUnico) {
       return empleados.map(emp => {
-        const m = marcajes.find(x => x.empleado_id === emp.id);
-        const hora = m?.hora?.substring(0, 5) || '-';
-        const diff = m ? minDiff(m.hora, config.horaEntrada) : Infinity;
+        const empMarcs = marcajes.filter(x => x.empleado_id === emp.id && x.fecha === fechaInicio);
+        
+        const entradas = empMarcs.filter(m => m.tipo === 'entrada' || !m.tipo).sort((a, b) => a.hora.localeCompare(b.hora));
+        const salidas = empMarcs.filter(m => m.tipo === 'salida').sort((a, b) => b.hora.localeCompare(a.hora));
+        
+        const mEntrada = entradas[0];
+        const mSalida = salidas[0];
+        
+        const horaEntrada = mEntrada?.hora?.substring(0, 5) || '-';
+        const horaSalida = mSalida?.hora?.substring(0, 5) || '-';
+        
+        const diff = mEntrada ? minDiff(mEntrada.hora, config.horaEntrada) : Infinity;
         const noLaboral = isDiaNoLaboral(fechaInicio, config.asuetos, emp.cargo || '', config.finesDeSemanaLaborables);
         
         let status: 'puntual' | 'tarde' | 'ausente' | 'asueto' | 'fin_de_semana';
-        if (!m) {
+        if (!mEntrada && !mSalida) {
           if (noLaboral.isNoLaboral) status = noLaboral.tipo as 'asueto' | 'fin_de_semana';
           else status = 'ausente';
-        } else {
+        } else if (mEntrada) {
           status = diff <= config.toleranciaMinutos ? 'puntual' : 'tarde';
+        } else {
+          status = 'puntual';
         }
         
         const justif = justificaciones.find(j => j.empleado_id === emp.id && j.fecha === fechaInicio);
+        const estacion = mEntrada?.punto_marcaje || mSalida?.punto_marcaje || '—';
+        const fotoEntrada = (mEntrada as any)?.foto_marcaje_url || (mEntrada as any)?.foto_url || '';
+        const fotoSalida = (mSalida as any)?.foto_marcaje_url || (mSalida as any)?.foto_url || '';
 
         return {
           empleadoId: emp.id,
@@ -339,41 +342,69 @@ export default function ReportesPage() {
           subarea: emp.subarea || '—',
           cargo: emp.cargo || '—',
           fecha: fechaInicio,
-          hora,
-          estacion: m?.punto_marcaje || '—',
-          minutos: m ? minDiff(m.hora, config.horaEntrada) : Infinity,
+          horaEntrada,
+          horaSalida,
+          estacion,
+          minutos: diff,
           status,
           motivo: justif?.motivo || '',
           observaciones: justif?.observaciones || '',
-          fotoEvidenciaUrl: (m as any)?.foto_marcaje_url || (m as any)?.foto_url || ''
+          fotoEvidenciaUrl: fotoEntrada,
+          fotoEvidenciaSalidaUrl: fotoSalida
         };
       });
     }
 
-    return marcajes.map(m => {
-      const emp = m.empleado || empleados.find(e => e.id === m.empleado_id);
-      const hora = m.hora?.substring(0, 5) || '-';
-      const diff = minDiff(m.hora || '00:00', config.horaEntrada);
-      const justif = justificaciones.find(j => j.empleado_id === m.empleado_id && j.fecha === m.fecha);
+    const grouped = new Map<string, MarcajeRow[]>();
+    marcajes.forEach(m => {
+      const key = `${m.empleado_id}_${m.fecha}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(m);
+    });
 
-      return {
-        empleadoId: m.empleado_id,
+    const rows: RowAsistencia[] = [];
+    grouped.forEach((list) => {
+      const firstM = list[0];
+      const emp = firstM.empleado || empleados.find(e => e.id === firstM.empleado_id);
+      
+      const entradas = list.filter(m => m.tipo === 'entrada' || !m.tipo).sort((a, b) => a.hora.localeCompare(b.hora));
+      const salidas = list.filter(m => m.tipo === 'salida').sort((a, b) => b.hora.localeCompare(a.hora));
+
+      const mEntrada = entradas[0];
+      const mSalida = salidas[0];
+
+      const horaEntrada = mEntrada?.hora?.substring(0, 5) || '-';
+      const horaSalida = mSalida?.hora?.substring(0, 5) || '-';
+
+      const diff = mEntrada ? minDiff(mEntrada.hora, config.horaEntrada) : (mSalida ? minDiff(mSalida.hora, config.horaEntrada) : 0);
+      const justif = justificaciones.find(j => j.empleado_id === firstM.empleado_id && j.fecha === firstM.fecha);
+      const estacion = mEntrada?.punto_marcaje || mSalida?.punto_marcaje || firstM.punto_marcaje || '—';
+
+      const fotoEntrada = (mEntrada as any)?.foto_marcaje_url || (mEntrada as any)?.foto_url || '';
+      const fotoSalida = (mSalida as any)?.foto_marcaje_url || (mSalida as any)?.foto_url || '';
+
+      rows.push({
+        empleadoId: firstM.empleado_id,
         nombre: emp?.nombre || 'N/A',
         apellido: emp?.apellido || '',
         cedula: emp?.cedula || '',
         departamento: emp?.departamento || '—',
         subarea: emp?.subarea || '—',
         cargo: emp?.cargo || '—',
-        fecha: m.fecha,
-        hora,
-        estacion: m.punto_marcaje || '—',
+        fecha: firstM.fecha,
+        horaEntrada,
+        horaSalida,
+        estacion,
         minutos: diff,
         status: diff <= config.toleranciaMinutos ? 'puntual' : 'tarde',
         motivo: justif?.motivo || '',
         observaciones: justif?.observaciones || '',
-        fotoEvidenciaUrl: (m as any)?.foto_marcaje_url || (m as any)?.foto_url || ''
-      };
+        fotoEvidenciaUrl: fotoEntrada,
+        fotoEvidenciaSalidaUrl: fotoSalida
+      });
     });
+
+    return rows.sort((a, b) => b.fecha.localeCompare(a.fecha) || a.nombre.localeCompare(b.nombre));
   }, [empleados, marcajes, esDiaUnico, fechaInicio, config, justificaciones]);
 
   const tablaFiltrada = useMemo(() => tablaAsistencia.filter(r => {
@@ -448,7 +479,8 @@ export default function ReportesPage() {
     const chartData = datosEmpleado.map(d => ({
       fecha: d.fecha.substring(5),
       minutos: d.minutos === Infinity ? 0 : d.minutos,
-      hora: d.hora,
+      horaEntrada: d.horaEntrada,
+      horaSalida: d.horaSalida,
       status: d.status
     }));
 
@@ -488,7 +520,8 @@ export default function ReportesPage() {
       'Nombre': `${r.nombre} ${r.apellido}`,
       'Motivo': r.motivo || 'Sin Justificación',
       'Observación': r.observaciones || '-',
-      'Hora': r.hora,
+      'Hora Entrada': r.horaEntrada,
+      'Hora Salida': r.horaSalida,
       'Estación': r.estacion,
       'Fecha': r.fecha,
       'Estado': r.status.toUpperCase()
@@ -500,18 +533,19 @@ export default function ReportesPage() {
 
   const handleExportarPDF = () => {
     setExportando(true);
-    const cols = ['Departamento', 'Nombre', 'Motivo', 'Observación', 'Hora', 'Estación', 'Fecha', 'Estado'];
+    const cols = ['Departamento', 'Nombre', 'Motivo', 'Observación', 'Hora Entrada', 'Hora Salida', 'Estación', 'Fecha', 'Estado'];
     const rows = tablaFiltrada.map(r => [
       r.departamento,
       `${r.nombre} ${r.apellido}`,
       r.motivo || '-',
       r.observaciones || '-',
-      r.hora,
+      r.horaEntrada,
+      r.horaSalida,
       r.estacion,
       r.fecha,
       r.status.toUpperCase()
     ]);
-    exportarPDF(cols, rows, 'Informe de Asistencia Institucional', adminSede, `Rango: ${fechaInicio} a ${fechaFin}`);
+    exportarPDF(cols, rows, 'Informe de Asistencia e Ingreso/Salida Institucional', adminSede, `Rango: ${fechaInicio} a ${fechaFin}`);
     setExportando(false);
   };
 
@@ -788,7 +822,8 @@ export default function ReportesPage() {
                     <th className="py-2.5 px-3">Nombre</th>
                     <th className="py-2.5 px-3">Motivo</th>
                     <th className="py-2.5 px-3">Observación</th>
-                    <th className="py-2.5 px-3">Hora</th>
+                    <th className="py-2.5 px-3 text-emerald-400">Hora Entrada</th>
+                    <th className="py-2.5 px-3 text-blue-400">Hora Salida</th>
                     <th className="py-2.5 px-3">Estación</th>
                     <th className="py-2.5 px-3">Fecha</th>
                     <th className="py-2.5 px-3">Estado</th>
@@ -798,13 +833,13 @@ export default function ReportesPage() {
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {cargando ? (
                     <tr>
-                      <td colSpan={9} className="p-6 text-center text-slate-400 font-medium">
+                      <td colSpan={10} className="p-6 text-center text-slate-400 font-medium">
                         Cargando registros de asistencia...
                       </td>
                     </tr>
                   ) : tablaFiltrada.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-6 text-center text-slate-400 font-medium">
+                      <td colSpan={10} className="p-6 text-center text-slate-400 font-medium">
                         No se encontraron registros con los filtros seleccionados.
                       </td>
                     </tr>
@@ -836,7 +871,8 @@ export default function ReportesPage() {
                             <span className="text-slate-300">—</span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{row.hora}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-700">{row.horaEntrada}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{row.horaSalida}</td>
                         <td className="py-2.5 px-3 font-medium text-slate-500">{row.estacion}</td>
                         <td className="py-2.5 px-3 font-mono text-slate-600">{row.fecha}</td>
                         <td className="py-2.5 px-3">
@@ -877,16 +913,34 @@ export default function ReportesPage() {
                                   isOpen: true,
                                   url: row.fotoEvidenciaUrl || '',
                                   nombre: `${row.nombre} ${row.apellido}`,
-                                  fechaHora: `${row.fecha} a las ${row.hora}`
+                                  fechaHora: `${row.fecha} (Entrada: ${row.horaEntrada})`
                                 })}
-                                className="px-2 py-1 bg-blue-50 hover:bg-[#1E3A8A] hover:text-white text-[#1E3A8A] font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 border border-blue-200/60"
-                                title="Ver fotografía de evidencia en vivo"
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-700 hover:text-white text-emerald-700 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 border border-emerald-200/60"
+                                title="Ver fotografía de entrada"
                               >
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                Evidencia
+                                Entrada
+                              </button>
+                            )}
+                            {row.fotoEvidenciaSalidaUrl && (
+                              <button
+                                onClick={() => setModalFotoEvidencia({
+                                  isOpen: true,
+                                  url: row.fotoEvidenciaSalidaUrl || '',
+                                  nombre: `${row.nombre} ${row.apellido}`,
+                                  fechaHora: `${row.fecha} (Salida: ${row.horaSalida})`
+                                })}
+                                className="px-2 py-1 bg-blue-50 hover:bg-[#1E3A8A] hover:text-white text-[#1E3A8A] font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 border border-blue-200/60"
+                                title="Ver fotografía de salida"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Salida
                               </button>
                             )}
                             <button

@@ -227,12 +227,15 @@ export const marcajesService = {
     return { data, error };
   },
 
-  async getByFecha(fecha: string, sede?: string) {
+  async getByFecha(fecha: string, sede?: string, soloEntrada = false) {
     let query = supabase
       .from('marcajes')
       .select('*, empleado:empleado_id(id, nombre, apellido, departamento, cargo, sede)')
-      .eq('fecha', fecha)
-      .eq('tipo', 'entrada');
+      .eq('fecha', fecha);
+
+    if (soloEntrada) {
+      query = query.eq('tipo', 'entrada');
+    }
       
     if (sede && !sede.toUpperCase().includes('AMBA')) {
       const { data: empls } = await empleadosService.getAll(sede, true);
@@ -276,7 +279,6 @@ export const marcajesService = {
     let query = supabase
       .from('marcajes')
       .select('*, empleado:empleado_id(id, nombre, apellido, departamento, cargo, cedula, sede)')
-      .eq('tipo', 'entrada')
       .gte('fecha', fechaInicio)
       .lte('fecha', fechaFin);
 
