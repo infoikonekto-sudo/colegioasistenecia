@@ -5,10 +5,18 @@ import { createPortal } from 'react-dom';
 import { marcajesService, empleadosService, justificacionesService, configuracionService } from '@/lib/supabase';
 import { useAsistenciaStore } from '@/lib/store';
 import ModalMotivo from '@/components/Admin/ModalMotivo';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { exportToExcel } from '@/lib/exportUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+function formatMinutosLegibles(minutos: number): string {
+  if (minutos === Infinity || !minutos || minutos <= 0) return 'A tiempo (Puntual)';
+  if (minutos < 60) return `${minutos} min de retardo`;
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  return `${h}h ${m > 0 ? m + 'm' : ''} de retardo`;
+}
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface MarcajeRow {
@@ -821,34 +829,45 @@ export default function ReportesPage() {
 
   // Department-wide IA Performance Metrics
   const rendimientoDepartamento = useMemo(() => {
-    const targetEmps = empleados.filter(e => !filtroDept || e.departamento === filtroDept);
-    if (targetEmps.length === 0) return null;
+    const cleanDeptFilter = (filtroDept || '').trim().toLowerCase();
+    const targetEmps = empleados.filter(e => {
+      if (!cleanDeptFilter) return true;
+      const empDept = (e.departamento || '').trim().toLowerCase();
+      return empDept === cleanDeptFilter || empDept.includes(cleanDeptFilter) || cleanDeptFilter.includes(empDept);
+    });
 
-    const empAnalysis = targetEmps.map(emp => {
-      const datosEmp = tablaAsistencia.filter(r => r.cedula === emp.cedula);
+    // Fallback: si no hay coincidencia directa, usar todos los empleados disponibles
+    const finalEmps = targetEmps.length > 0 ? targetEmps : empleados;
+    if (finalEmps.length === 0) return null;
+
+    const empAnalysis = finalEmps.map(emp => {
+      const datosEmp = tablaAsistencia.filter(r => r.cedula === emp.cedula || r.empleadoId === emp.id);
       const totalDias = datosEmp.length;
       const diasAusente = datosEmp.filter(d => d.status === 'ausente').length;
       const diasPresente = totalDias - diasAusente;
       const diasPuntual = datosEmp.filter(d => d.status === 'puntual').length;
       const diasTarde = datosEmp.filter(d => d.status === 'tarde').length;
       
-      const porcentajePuntualidad = diasPresente > 0 ? Math.round((diasPuntual / diasPresente) * 100) : 0;
+      const porcentajePuntualidad = diasPresente > 0 ? Math.round((diasPuntual / diasPresente) * 100) : (totalDias === 0 ? 100 : 0);
       const minutosRetrasoTotal = datosEmp.reduce((sum, d) => sum + (d.status === 'tarde' && d.minutos > config.toleranciaMinutos ? d.minutos : 0), 0);
       
       let aiInsight = '';
       let aiColor = 'emerald';
       
-      if (diasPresente === 0) {
-        aiInsight = 'No se registran asistencias para este funcionario en el período.';
+      if (totalDias === 0) {
+        aiInsight = 'Sin registros de marcaje en el período consultado.';
         aiColor = 'slate';
+      } else if (diasPresente === 0) {
+        aiInsight = 'No se registran asistencias para este funcionario en el período.';
+        aiColor = 'rose';
       } else if (porcentajePuntualidad >= 95) {
         aiInsight = 'Rendimiento Sobresaliente. Mantiene un cumplimiento de horario ejemplar (arriba del 95%).';
         aiColor = 'emerald';
       } else if (porcentajePuntualidad >= 80) {
-        aiInsight = `Cumplimiento Normal. Presentó ${diasTarde} tardanza(s), acumulando ${minutosRetrasoTotal} minutos de retardo.`;
+        aiInsight = `Cumplimiento Normal. Presentó ${diasTarde} tardanza(s), acumulando ${formatMinutosLegibles(minutosRetrasoTotal)}.`;
         aiColor = 'blue';
       } else if (porcentajePuntualidad >= 50) {
-        aiInsight = `Atención Requerida. Índice de puntualidad al ${porcentajePuntualidad}%. Registra ${minutosRetrasoTotal} min acumulados.`;
+        aiInsight = `Atención Requerida. Índice de puntualidad al ${porcentajePuntualidad}%. Registra ${formatMinutosLegibles(minutosRetrasoTotal)} acumulados.`;
         aiColor = 'amber';
       } else {
         aiInsight = `Alerta Crítica. El ${100 - porcentajePuntualidad}% de sus marcajes han sido con retardo. Acción administrativa prioritaria.`;
@@ -870,13 +889,19 @@ export default function ReportesPage() {
       };
     });
 
-    const totalFuncionarios = targetEmps.length;
+    const totalFuncionarios = finalEmps.length;
     const empsConAsistencia = empAnalysis.filter(x => x.diasPresente > 0);
     const pctPuntualidadPromedio = empsConAsistencia.length > 0 
       ? Math.round(empsConAsistencia.reduce((acc, x) => acc + x.porcentajePuntualidad, 0) / empsConAsistencia.length)
-      : 0;
+      : 100;
     const totalTardanzasDepto = empAnalysis.reduce((acc, x) => acc + x.diasTarde, 0);
     const totalMinutosDepto = empAnalysis.reduce((acc, x) => acc + x.minutosRetrasoTotal, 0);
+
+    const chartDataDepto = empAnalysis.map(item => ({
+      nombre: `${item.emp.nombre} ${item.emp.apellido ? item.emp.apellido[0] + '.' : ''}`,
+      minutosRetraso: item.minutosRetrasoTotal,
+      puntualidad: item.porcentajePuntualidad
+    }));
 
     return {
       nombreDepartamento: filtroDept || 'Todos los Departamentos',
@@ -884,7 +909,8 @@ export default function ReportesPage() {
       pctPuntualidadPromedio,
       totalTardanzasDepto,
       totalMinutosDepto,
-      empAnalysis
+      empAnalysis,
+      chartDataDepto
     };
   }, [empleados, filtroDept, tablaAsistencia, config]);
 
@@ -1553,8 +1579,32 @@ export default function ReportesPage() {
                   </div>
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Min. Retardo Acumulados</span>
-                    <p className="text-2xl font-extrabold text-rose-800 mt-1">{rendimientoDepartamento.totalMinutosDepto} min</p>
+                    <p className="text-2xl font-extrabold text-rose-800 mt-1">{formatMinutosLegibles(rendimientoDepartamento.totalMinutosDepto)}</p>
                   </div>
+                </div>
+              </div>
+
+              {/* GRÁFICO RECHARTS BARRAS DEL DEPARTAMENTO */}
+              <div className="glass-panel p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 tracking-tight uppercase">Comparativo de Retardo por Funcionario ({rendimientoDepartamento.nombreDepartamento})</h3>
+                    <p className="text-xs text-slate-400 font-medium">Minutos de retardo acumulados por cada integrante del área.</p>
+                  </div>
+                </div>
+
+                <div className="h-64 w-full pt-2 min-h-[250px]">
+                  {isMounted && (
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                      <BarChart data={rendimientoDepartamento.chartDataDepto}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                        <XAxis dataKey="nombre" stroke="#94A3B8" fontSize={11} />
+                        <YAxis stroke="#94A3B8" fontSize={11} label={{ value: 'Minutos Retardo', angle: -90, position: 'insideLeft' }} />
+                        <RechartsTooltip contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', color: '#FFF', border: 'none' }} />
+                        <Bar dataKey="minutosRetraso" fill="#1E3A8A" radius={[6, 6, 0, 0]} name="Minutos de Retardo" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
 
@@ -1581,7 +1631,7 @@ export default function ReportesPage() {
                       </p>
                       <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 font-mono">
                         <span>Tardanzas: <b>{item.diasTarde}</b></span>
-                        <span>Retardo total: <b>{item.minutosRetrasoTotal} min</b></span>
+                        <span>Retardo total: <b>{formatMinutosLegibles(item.minutosRetrasoTotal)}</b></span>
                         <button
                           onClick={() => setEmpleadoSeleccionadoId(item.emp.id)}
                           className="text-[#1E3A8A] font-bold hover:underline"
