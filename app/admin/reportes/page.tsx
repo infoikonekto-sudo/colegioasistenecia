@@ -167,6 +167,197 @@ async function exportarPDF(columnas: string[], filas: string[][], titulo: string
   doc.save(`${nombreFinal}-${getTodayStr()}.pdf`);
 }
 
+async function exportarPDFDiagnosticoIA(rendimiento: any, fechaInicio: string, fechaFin: string, sede: string | null = null) {
+  if (!rendimiento || !rendimiento.emp) return;
+  
+  const doc = new jsPDF({ orientation: 'portrait' });
+  const emp = rendimiento.emp;
+  const pageWidth = doc.internal.pageSize.width;
+
+  // Header Navy Premium
+  doc.setFillColor(30, 58, 138);
+  doc.rect(0, 0, pageWidth, 30, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  const tituloCompleto = sede ? `Colegio Manos a la Obra - SEDE ${sede}` : 'Colegio Manos a la Obra';
+  doc.text(tituloCompleto, 14, 12);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(226, 232, 240);
+  doc.text(`INFORME DE DIAGNÓSTICO IA DE ASISTENCIA INDIVIDUAL`, 14, 19);
+  doc.text(`Período: ${fechaInicio} a ${fechaFin} | Generado: ${new Date().toLocaleString('es-ES')}`, 14, 25);
+
+  let currentY = 38;
+
+  // Box Ficha Funcionario
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, currentY, pageWidth - 28, 28, 3, 3, 'FD');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${emp.nombre} ${emp.apellido}`, 18, currentY + 8);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Cédula: ${emp.cedula || 'N/A'}`, 18, currentY + 15);
+  doc.text(`Departamento: ${emp.departamento || 'N/A'}`, 18, currentY + 22);
+  doc.text(`Cargo: ${emp.cargo || 'N/A'}`, pageWidth / 2, currentY + 15);
+  doc.text(`Subárea: ${emp.subarea || '—'}`, pageWidth / 2, currentY + 22);
+
+  currentY += 34;
+
+  // Metricas KPIs Box
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(14, currentY, pageWidth - 28, 20, 3, 3, 'FD');
+
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 138);
+  doc.text(`Cumplimiento Puntualidad: ${rendimiento.porcentajePuntualidad}%`, 18, currentY + 9);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Días Evaluados: ${rendimiento.totalDias}`, 18, currentY + 15);
+  doc.text(`Presente: ${rendimiento.diasPresente}`, 65, currentY + 15);
+  doc.text(`Tardanzas: ${rendimiento.diasTarde}`, 105, currentY + 15);
+  doc.text(`Min. Retardo Total: ${rendimiento.minutosRetrasoTotal} min`, 145, currentY + 15);
+
+  currentY += 26;
+
+  // Box Dictamen IA
+  doc.setFillColor(239, 246, 255);
+  doc.setDrawColor(191, 219, 254);
+  doc.roundedRect(14, currentY, pageWidth - 28, 22, 3, 3, 'FD');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 138);
+  doc.text(`DICTAMEN DEL SISTEMA DE IA:`, 18, currentY + 7);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+  const linesInsight = doc.splitTextToSize(rendimiento.aiInsight, pageWidth - 40);
+  doc.text(linesInsight, 18, currentY + 13);
+
+  currentY += 28;
+
+  // Tabla Detallada
+  const cols = ['Fecha', 'Entrada', 'Salida', 'Estación', 'Estado', 'Retardo', 'Motivo / Obs'];
+  const filas = (rendimiento.datosEmpleado || []).map((d: any) => [
+    d.fecha,
+    d.horaEntrada || '-',
+    d.horaSalida || '-',
+    d.estacion || '—',
+    d.status.toUpperCase(),
+    d.minutos > 0 && d.minutos !== Infinity ? `+${d.minutos} min` : '0 min',
+    d.motivo || d.observaciones || '-'
+  ]);
+
+  autoTable(doc, {
+    head: [cols],
+    body: filas,
+    startY: currentY,
+    styles: { fontSize: 8, cellPadding: 2.5, lineColor: [226, 232, 240], lineWidth: 0.1 },
+    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  const nombreArchivo = `diagnostico-ia-${emp.nombre.toLowerCase()}-${emp.apellido.toLowerCase()}-${getTodayStr()}.pdf`;
+  doc.save(nombreArchivo);
+}
+
+async function exportarPDFPorCategorias(tabla: any[], titulo: string, sede: string | null = null, subtituloExtra?: string) {
+  const doc = new jsPDF({ orientation: 'landscape' });
+  const pageWidth = doc.internal.pageSize.width;
+
+  // Header Navy Premium
+  doc.setFillColor(30, 58, 138);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  const tituloCompleto = sede ? `Colegio Manos a la Obra - SEDE ${sede}` : 'Colegio Manos a la Obra';
+  doc.text(tituloCompleto, 14, 11);
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(226, 232, 240);
+  doc.text(`${titulo} (Agrupado por Categorías / Departamento) | Generado: ${new Date().toLocaleString('es-ES')}`, 14, 18);
+  
+  if (subtituloExtra) {
+     doc.setFont('helvetica', 'bold');
+     doc.setTextColor(191, 219, 254);
+     doc.text(subtituloExtra, 14, 24);
+  }
+  
+  let currentY = 34;
+
+  const deptosMap = new Map<string, any[]>();
+  tabla.forEach(r => {
+    const dept = r.departamento || 'Sin Departamento';
+    if (!deptosMap.has(dept)) deptosMap.set(dept, []);
+    deptosMap.get(dept)!.push(r);
+  });
+
+  const cols = ['Nombre Funcionario', 'Cédula', 'Motivo / Obs', 'Hora Entrada', 'Hora Salida', 'Estación', 'Fecha', 'Estado'];
+
+  const sortedDeptos = Array.from(deptosMap.keys()).sort();
+
+  sortedDeptos.forEach((dept) => {
+    const rowsDept = deptosMap.get(dept)!;
+
+    if (currentY > doc.internal.pageSize.height - 40) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(14, currentY, pageWidth - 28, 8, 'FD');
+
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 58, 138);
+    doc.text(`CATEGORÍA / DEPARTAMENTO: ${dept.toUpperCase()} (${rowsDept.length} Registros)`, 18, currentY + 5.5);
+
+    currentY += 10;
+
+    const filas = rowsDept.map(r => [
+      `${r.nombre} ${r.apellido}`,
+      r.cedula || '-',
+      r.motivo ? `${r.motivo}${r.observaciones ? ' - ' + r.observaciones : ''}` : (r.observaciones || '-'),
+      r.horaEntrada,
+      r.horaSalida,
+      r.estacion,
+      r.fecha,
+      r.status.toUpperCase()
+    ]);
+
+    autoTable(doc, {
+      head: [cols],
+      body: filas,
+      startY: currentY,
+      styles: { fontSize: 7.5, cellPadding: 2.5, lineColor: [226, 232, 240], lineWidth: 0.1, overflow: 'linebreak' },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 8;
+  });
+
+  const nombreFinal = sede ? `reporte-categorias-sede-${sede.toLowerCase()}` : 'reporte-categorias';
+  doc.save(`${nombreFinal}-${getTodayStr()}.pdf`);
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ReportesPage() {
   const { adminSede } = useAsistenciaStore();
@@ -531,9 +722,14 @@ export default function ReportesPage() {
 
   const handleExportarExcel = () => {
     setExportando(true);
-    const rows = tablaFiltrada.map(r => ({
-      'Departamento': r.departamento,
-      'Nombre': `${r.nombre} ${r.apellido}`,
+    const sorted = [...tablaFiltrada].sort((a, b) => 
+      a.departamento.localeCompare(b.departamento) || a.nombre.localeCompare(b.nombre)
+    );
+    const rows = sorted.map(r => ({
+      'Categoría / Departamento': r.departamento,
+      'Subárea': r.subarea,
+      'Nombre Funcionario': `${r.nombre} ${r.apellido}`,
+      'Cédula': r.cedula,
       'Motivo': r.motivo || 'Sin Justificación',
       'Observación': r.observaciones || '-',
       'Hora Entrada': r.horaEntrada,
@@ -549,6 +745,11 @@ export default function ReportesPage() {
 
   const handleExportarPDF = () => {
     setExportando(true);
+    if (activeTab === 'ia' && rendimientoEmpleado) {
+      exportarPDFDiagnosticoIA(rendimientoEmpleado, fechaInicio, fechaFin, adminSede);
+      setExportando(false);
+      return;
+    }
     const cols = ['Departamento', 'Nombre', 'Motivo', 'Observación', 'Hora Entrada', 'Hora Salida', 'Estación', 'Fecha', 'Estado'];
     const rows = tablaFiltrada.map(r => [
       r.departamento,
@@ -562,6 +763,19 @@ export default function ReportesPage() {
       r.status.toUpperCase()
     ]);
     exportarPDF(cols, rows, 'Informe de Asistencia e Ingreso/Salida Institucional', adminSede, `Rango: ${fechaInicio} a ${fechaFin}`);
+    setExportando(false);
+  };
+
+  const handleExportarPDFPorCategorias = () => {
+    setExportando(true);
+    exportarPDFPorCategorias(tablaFiltrada, 'Informe de Asistencia por Categorías', adminSede, `Rango: ${fechaInicio} a ${fechaFin}`);
+    setExportando(false);
+  };
+
+  const handleExportarPDFDiagnostico = () => {
+    if (!rendimientoEmpleado) return;
+    setExportando(true);
+    exportarPDFDiagnosticoIA(rendimientoEmpleado, fechaInicio, fechaFin, adminSede);
     setExportando(false);
   };
 
@@ -685,13 +899,14 @@ export default function ReportesPage() {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 pt-4 md:pt-0">
+        <div className="flex flex-wrap items-center gap-1.5 pt-4 md:pt-0">
           <button
             onClick={handleExportarExcel}
             disabled={exportando}
-            className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
+            className="flex-1 min-w-[80px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2.5 px-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1"
+            title="Exportar reporte ordenado por categorías a Excel"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             Excel
@@ -699,12 +914,24 @@ export default function ReportesPage() {
           <button
             onClick={handleExportarPDF}
             disabled={exportando}
-            className="flex-1 bg-[#1E3A8A] hover:bg-[#172554] text-white font-bold text-xs py-2.5 px-3 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
+            className="flex-1 min-w-[80px] bg-[#1E3A8A] hover:bg-[#172554] text-white font-bold text-xs py-2.5 px-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1"
+            title="Exportar PDF general de asistencia"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
-            PDF
+            PDF General
+          </button>
+          <button
+            onClick={handleExportarPDFPorCategorias}
+            disabled={exportando}
+            className="flex-1 min-w-[120px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1"
+            title="Exportar PDF agrupado por departamentos/categorías"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            PDF Categorías
           </button>
         </div>
       </div>
@@ -1041,9 +1268,22 @@ export default function ReportesPage() {
                     </p>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-3xl font-extrabold text-slate-900">{rendimientoEmpleado.porcentajePuntualidad}%</span>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cumplimiento Puntualidad</p>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="text-left sm:text-right">
+                      <span className="text-3xl font-extrabold text-slate-900">{rendimientoEmpleado.porcentajePuntualidad}%</span>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cumplimiento Puntualidad</p>
+                    </div>
+                    <button
+                      onClick={handleExportarPDFDiagnostico}
+                      disabled={exportando}
+                      className="bg-[#1E3A8A] hover:bg-[#172554] text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition-all flex items-center gap-1.5 flex-shrink-0"
+                      title="Exportar informe en PDF de este funcionario"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Exportar PDF Diagnóstico IA
+                    </button>
                   </div>
                 </div>
 
